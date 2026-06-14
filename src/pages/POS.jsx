@@ -10,6 +10,14 @@ function POS() {
   const [selectedCategory, setSelectedCategory] =
     useState("Semua");
 
+  // OPEN BILL
+  const [openBills, setOpenBills] = useState([]);
+  const [currentBillId, setCurrentBillId] =
+    useState(null);
+
+  // SPLIT BILL
+  const [splitCount, setSplitCount] = useState(1);
+
   const addToCart = (product, variant = null) => {
     const cartId = variant
       ? `${product.id}-${variant.size}`
@@ -85,12 +93,74 @@ function POS() {
     0
   );
 
+  const splitTotal = total / splitCount;
+
   const change =
     Number(payment) > total
       ? Number(payment) - total
       : 0;
 
-  const saveTransaction = async () => {
+  const openBill = () => {
+    if (cart.length === 0) {
+      alert("Keranjang kosong");
+      return;
+    }
+
+    const bill = {
+      id:
+        currentBillId ||
+        "BILL-" + Date.now(),
+      customer: customer || "Guest",
+      items: cart,
+      paymentMethod,
+    };
+
+    setOpenBills((prev) => {
+      const existing = prev.find(
+        (b) => b.id === bill.id
+      );
+
+      if (existing) {
+        return prev.map((b) =>
+          b.id === bill.id ? bill : b
+        );
+      }
+
+      return [...prev, bill];
+    });
+
+    setCurrentBillId(bill.id);
+    alert("Bill disimpan");
+  };
+
+  const resumeBill = (bill) => {
+    setCart(bill.items);
+    setCustomer(bill.customer);
+    setPaymentMethod(bill.paymentMethod);
+    setCurrentBillId(bill.id);
+  };
+
+  const holdCart = () => {
+    openBill();
+    setCart([]);
+    setCustomer("");
+    setPayment("");
+    setCurrentBillId(null);
+  };
+
+  const closeBill = () => {
+    if (!currentBillId) return;
+
+    setOpenBills(
+      openBills.filter(
+        (bill) =>
+          bill.id !== currentBillId
+      )
+    );
+
+    setCurrentBillId(null);
+  };
+    const saveTransaction = async () => {
     if (cart.length === 0) {
       alert("Keranjang masih kosong");
       return;
@@ -101,17 +171,19 @@ function POS() {
       customer,
       paymentMethod,
       total,
-       items: cart.map((item) => ({
-    name: item.name,
-    qty: item.qty,
-    price: item.price,
-    subtotal: item.price * item.qty,
-  })),
-
-  orderDetail: cart
-    .map((item) => `${item.name} x${item.qty}`)
-    .join(", "),
-};
+      items: cart.map((item) => ({
+        name: item.name,
+        qty: item.qty,
+        price: item.price,
+        subtotal: item.price * item.qty,
+      })),
+      orderDetail: cart
+        .map(
+          (item) =>
+            `${item.name} x${item.qty}`
+        )
+        .join(", "),
+    };
 
     try {
       const formData = new FormData();
@@ -131,6 +203,7 @@ function POS() {
 
       alert("Transaksi berhasil disimpan");
 
+      closeBill();
       setCart([]);
       setCustomer("");
       setPaymentMethod("Tunai");
@@ -140,12 +213,6 @@ function POS() {
       alert("Gagal menyimpan transaksi");
     }
   };
-
-  const filteredProducts = products.filter(
-    (product) =>
-      selectedCategory === "Semua" ||
-      product.category === selectedCategory
-  );
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -195,140 +262,158 @@ function POS() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Produk */}
-        {/* Produk */}
-<div className="md:col-span-2">
-  <div className="space-y-8">
+        <div className="md:col-span-2">
+          <div className="space-y-8">
+            {(selectedCategory === "Semua" ||
+              selectedCategory ===
+                "Minuman") && (
+              <>
+                <h2 className="text-2xl font-bold text-amber-700 border-b pb-2">
+                  ☕ Coffee
+                </h2>
 
-    {/* COFFEE */}
-    {(selectedCategory === "Semua" ||
-      selectedCategory === "Minuman") && (
-      <>
-        <h2 className="text-2xl font-bold text-amber-700 border-b pb-2">
-          ☕ Coffee
-        </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {products
+                    .filter(
+                      (p) =>
+                        p.category ===
+                          "Minuman" &&
+                        p.type === "Coffee"
+                    )
+                    .map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow p-4"
+                      >
+                        <h3 className="font-bold text-lg">
+                          {product.name}
+                        </h3>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {products
-            .filter(
-              (p) =>
-                p.category === "Minuman" &&
-                p.type === "Coffee"
-            )
-            .map((product) => (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl shadow p-4"
-              >
-                <h3 className="font-bold text-lg">
-                  {product.name}
-                </h3>
-
-                <div className="flex gap-2 mt-3">
-                  {product.variants.map((variant) => (
-                    <button
-                      key={variant.size}
-                      onClick={() =>
-                        addToCart(product, variant)
-                      }
-                      className="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm"
-                    >
-                      {variant.size}
-                      <br />
-                      Rp {variant.price.toLocaleString()}
-                    </button>
-                  ))}
+                        <div className="flex gap-2 mt-3">
+                          {product.variants.map(
+                            (variant) => (
+                              <button
+                                key={
+                                  variant.size
+                                }
+                                onClick={() =>
+                                  addToCart(
+                                    product,
+                                    variant
+                                  )
+                                }
+                                className="flex-1 bg-amber-600 text-white py-2 rounded-lg text-sm"
+                              >
+                                {variant.size ||
+                                  "Regular"}
+                                <br />
+                                Rp{" "}
+                                {variant.price.toLocaleString()}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
                 </div>
-              </div>
-            ))}
-        </div>
-      </>
-    )}
+              </>
+            )}
 
-    {/* NON COFFEE */}
-    {(selectedCategory === "Semua" ||
-      selectedCategory === "Minuman") && (
-      <>
-        <h2 className="text-2xl font-bold text-blue-700 border-b pb-2">
-          🥛 Non Coffee
-        </h2>
+                          {(selectedCategory === "Semua" ||
+              selectedCategory ===
+                "Minuman") && (
+              <>
+                <h2 className="text-2xl font-bold text-blue-700 border-b pb-2">
+                  🥛 Non Coffee
+                </h2>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {products
-            .filter(
-              (p) =>
-                p.category === "Minuman" &&
-                p.type === "Non Coffee"
-            )
-            .map((product) => (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl shadow p-4"
-              >
-                <h3 className="font-bold text-lg">
-                  {product.name}
-                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {products
+                    .filter(
+                      (p) =>
+                        p.category ===
+                          "Minuman" &&
+                        p.type ===
+                          "Non Coffee"
+                    )
+                    .map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow p-4"
+                      >
+                        <h3 className="font-bold text-lg">
+                          {product.name}
+                        </h3>
 
-                <div className="flex gap-2 mt-3">
-                  {product.variants.map((variant) => (
-                    <button
-                      key={variant.size}
-                      onClick={() =>
-                        addToCart(product, variant)
-                      }
-                      className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm"
-                    >
-                      {variant.size}
-                      <br />
-                      Rp {variant.price.toLocaleString()}
-                    </button>
-                  ))}
+                        <div className="flex gap-2 mt-3">
+                          {product.variants.map(
+                            (variant, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() =>
+                                  addToCart(
+                                    product,
+                                    variant
+                                  )
+                                }
+                                className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm"
+                              >
+                                {variant.size ||
+                                  "Regular"}
+                                <br />
+                                Rp{" "}
+                                {variant.price.toLocaleString()}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
                 </div>
-              </div>
-            ))}
+              </>
+            )}
+
+            {(selectedCategory === "Semua" ||
+              selectedCategory ===
+                "Makanan") && (
+              <>
+                <h2 className="text-2xl font-bold text-green-700 border-b pb-2">
+                  🍟 Makanan & Snack
+                </h2>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {products
+                    .filter(
+                      (p) =>
+                        p.category ===
+                        "Makanan"
+                    )
+                    .map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow p-4"
+                      >
+                        <h3 className="font-bold text-lg">
+                          {product.name}
+                        </h3>
+
+                        <button
+                          onClick={() =>
+                            addToCart(product)
+                          }
+                          className="w-full mt-3 bg-green-600 text-white py-2 rounded-lg"
+                        >
+                          Rp{" "}
+                          {product.price.toLocaleString()}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </>
-    )}
 
-    {/* MAKANAN */}
-    {(selectedCategory === "Semua" ||
-      selectedCategory === "Makanan") && (
-      <>
-        <h2 className="text-2xl font-bold text-green-700 border-b pb-2">
-          🍟 Makanan & Snack
-        </h2>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {products
-            .filter(
-              (p) => p.category === "Makanan"
-            )
-            .map((product) => (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl shadow p-4"
-              >
-                <h3 className="font-bold text-lg">
-                  {product.name}
-                </h3>
-
-                <button
-                  onClick={() =>
-                    addToCart(product)
-                  }
-                  className="w-full mt-3 bg-green-600 text-white py-2 rounded-lg"
-                >
-                  Rp {product.price.toLocaleString()}
-                </button>
-              </div>
-            ))}
-        </div>
-      </>
-    )}
-
-  </div>
-</div>
-        {/* Keranjang */}
         <div className="bg-white rounded-xl shadow-lg p-5">
           <h2 className="text-2xl font-bold mb-4">
             Keranjang
@@ -363,7 +448,9 @@ function POS() {
             <select
               value={paymentMethod}
               onChange={(e) =>
-                setPaymentMethod(e.target.value)
+                setPaymentMethod(
+                  e.target.value
+                )
               }
               className="w-full border rounded-lg p-3"
             >
@@ -383,28 +470,94 @@ function POS() {
               className="w-full border rounded-lg p-3"
             />
 
+            <div>
+              <label>Split Bill</label>
+              <input
+                type="number"
+                min="1"
+                value={splitCount}
+                onChange={(e) =>
+                  setSplitCount(
+                    Number(e.target.value)
+                  )
+                }
+                className="w-full border rounded-lg p-2 mt-1"
+              />
+              <p className="text-sm mt-1">
+                Per Orang: Rp{" "}
+                {splitTotal.toLocaleString()}
+              </p>
+            </div>
+
             <div className="border-t pt-4">
               <p className="text-lg">
                 Total :
                 <span className="font-bold ml-2">
-                  Rp {total.toLocaleString()}
+                  Rp{" "}
+                  {total.toLocaleString()}
                 </span>
               </p>
 
               <p className="text-lg mt-2">
                 Kembalian :
                 <span className="font-bold text-green-600 ml-2">
-                  Rp {change.toLocaleString()}
+                  Rp{" "}
+                  {change.toLocaleString()}
                 </span>
               </p>
             </div>
 
             <button
               onClick={saveTransaction}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-lg"
+              className="w-full bg-amber-600 text-white font-bold py-3 rounded-lg"
             >
               Simpan Transaksi
             </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={openBill}
+                className="bg-blue-600 text-white py-2 rounded"
+              >
+                Open Bill
+              </button>
+
+              <button
+                onClick={holdCart}
+                className="bg-purple-600 text-white py-2 rounded"
+              >
+                Hold Cart
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <h3 className="font-bold">
+                Open Bills
+              </h3>
+
+              {openBills.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  Tidak ada bill aktif
+                </p>
+              ) : (
+                openBills.map((bill) => (
+                  <div
+                    key={bill.id}
+                    className="border rounded p-2 mt-2"
+                  >
+                    <p>{bill.customer}</p>
+                    <button
+                      onClick={() =>
+                        resumeBill(bill)
+                      }
+                      className="bg-green-600 text-white px-2 py-1 rounded mt-1"
+                    >
+                      Resume
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
