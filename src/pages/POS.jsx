@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import products from "../data/products";
 import CartItem from "../components/CartItem";
 
 function POS() {
   const [cart, setCart] = useState([]);
+  useEffect(() => {
+  const promoCart =
+    JSON.parse(
+      localStorage.getItem("promoCart")
+    ) || [];
+
+  if (promoCart.length > 0) {
+    setCart((prev) => [
+      ...prev,
+      ...promoCart
+    ]);
+
+    localStorage.removeItem("promoCart");
+  }
+}, []);
   const [customer, setCustomer] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Tunai");
   const [payment, setPayment] = useState("");
@@ -28,15 +43,16 @@ function POS() {
     );
 
     const itemData = {
-      cartId,
-      id: product.id,
-      name: variant
-        ? `${product.name} (${variant.size})`
-        : product.name,
-      price: variant
-        ? variant.price
-        : product.price,
-    };
+  cartId,
+  id: product.id,
+  name: variant
+    ? `${product.name} (${variant.size})`
+    : product.name,
+  price: variant
+    ? variant.price
+    : product.price,
+  category: product.category
+};
 
     if (existing) {
       setCart(
@@ -172,11 +188,12 @@ function POS() {
       paymentMethod,
       total,
       items: cart.map((item) => ({
-        name: item.name,
-        qty: item.qty,
-        price: item.price,
-        subtotal: item.price * item.qty,
-      })),
+  name: item.name,
+  qty: item.qty,
+  price: item.price,
+  category: item.category,
+  subtotal: item.price * item.qty,
+})),
       orderDetail: cart
         .map(
           (item) =>
@@ -186,32 +203,45 @@ function POS() {
     };
 
     try {
-      const formData = new FormData();
+  const formData = new FormData();
 
-      formData.append(
-        "data",
-        JSON.stringify(transaction)
-      );
+  formData.append(
+    "data",
+    JSON.stringify(transaction)
+  );
 
-      await fetch(
-        "https://script.google.com/macros/s/AKfycbw6Fj8P60xbEOoUo-szOkCN76C7dVCdxTjYb1yKpZ3DD7hJmpuNxBGmT7GBYR00Agnw/exec",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      alert("Transaksi berhasil disimpan");
-
-      closeBill();
-      setCart([]);
-      setCustomer("");
-      setPaymentMethod("Tunai");
-      setPayment("");
-    } catch (error) {
-      console.error(error);
-      alert("Gagal menyimpan transaksi");
+  await fetch(
+    "https://script.google.com/macros/s/AKfycbw6Fj8P60xbEOoUo-szOkCN76C7dVCdxTjYb1yKpZ3DD7hJmpuNxBGmT7GBYR00Agnw/exec",
+    {
+      method: "POST",
+      body: formData,
     }
+  );
+
+  // SIMPAN KE LOCAL STORAGE
+  const existing =
+    JSON.parse(
+      localStorage.getItem("transactions")
+    ) || [];
+
+  existing.push(transaction);
+
+  localStorage.setItem(
+    "transactions",
+    JSON.stringify(existing)
+  );
+
+  alert("Transaksi berhasil disimpan");
+
+  closeBill();
+  setCart([]);
+  setCustomer("");
+  setPaymentMethod("Tunai");
+  setPayment("");
+} catch (error) {
+  console.error(error);
+  alert("Gagal menyimpan transaksi");
+}
   };
 
   return (
