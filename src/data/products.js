@@ -189,13 +189,13 @@ const products = [
     id: 20,
     category: "Makanan",
     name: "Fried Sausage",
-    price: 12000
+    price: 15000
   },
   {
     id: 21,
     category: "Makanan",
     name: "Fried Nuggets",
-    price: 12000
+    price: 15000
   },
   {
     id: 22,
@@ -219,14 +219,20 @@ const products = [
     id: 25,
     category: "Makanan",
     name: "INDOMIE DOUBLE TELOR",
-    price: 20000
+    price: 25000
   },
   {
     id: 26,
     category: "Makanan",
     name: "ES KRIM",
-    price: 3000
-  }
-];
+    price: 5000
+  },
+  {
+    id: 27,
+    category: "Makanan",
+    name: "Telur",
+    price: 5000
+  }]
+;
 
 export default products;
