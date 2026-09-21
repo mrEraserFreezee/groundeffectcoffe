@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import products from "../data/products";
 import CartItem from "../components/CartItem";
+import Receipt from "../components/Receipt";
 
 function POS() {
   const [cart, setCart] = useState([]);
@@ -24,6 +25,7 @@ function POS() {
   const [payment, setPayment] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState("Semua");
+  const [lastTransaction, setLastTransaction] = useState(null);
 
   // OPEN BILL
   const [openBills, setOpenBills] = useState([]);
@@ -187,6 +189,8 @@ function POS() {
       customer,
       paymentMethod,
       total,
+      payment: Number(payment),
+      created_at: new Date().toISOString(),
       items: cart.map((item) => ({
   name: item.name,
   qty: item.qty,
@@ -231,6 +235,7 @@ function POS() {
     JSON.stringify(existing)
   );
 
+  setLastTransaction(transaction);
   alert("Transaksi berhasil disimpan");
 
   closeBill();
@@ -242,6 +247,14 @@ function POS() {
   console.error(error);
   alert("Gagal menyimpan transaksi");
 }
+  };
+
+  const printReceipt = () => {
+    if (!lastTransaction) {
+      alert("Belum ada transaksi yang dapat dicetak");
+      return;
+    }
+    window.print();
   };
 
   return (
@@ -544,6 +557,14 @@ function POS() {
               Simpan Transaksi
             </button>
 
+            <button
+              onClick={printReceipt}
+              disabled={!lastTransaction}
+              className="w-full bg-slate-800 disabled:bg-slate-300 text-white font-bold py-3 rounded-lg"
+            >
+              Cetak Struk Bluetooth
+            </button>
+
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={openBill}
@@ -591,6 +612,11 @@ function POS() {
           </div>
         </div>
       </div>
+
+      <Receipt
+        transaction={lastTransaction}
+        items={lastTransaction?.items}
+      />
     </div>
   );
 }
