@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { BluetoothPrinter } from "@kduma-autoid/capacitor-bluetooth-printer";
 import products from "../data/products";
 import CartItem from "../components/CartItem";
 import Receipt from "../components/Receipt";
+import { createEscPosReceipt } from "../utils/bluetoothPrinter";
 
 function POS() {
   const [cart, setCart] = useState([]);
@@ -26,6 +29,11 @@ function POS() {
   const [selectedCategory, setSelectedCategory] =
     useState("Semua");
   const [lastTransaction, setLastTransaction] = useState(null);
+  const [printers, setPrinters] = useState([]);
+  const [selectedPrinter, setSelectedPrinter] = useState(
+    () => localStorage.getItem("bluetoothPrinterAddress") || ""
+  );
+  const [printerStatus, setPrinterStatus] = useState("");
 
   // OPEN BILL
   const [openBills, setOpenBills] = useState([]);
@@ -254,7 +262,51 @@ function POS() {
       alert("Belum ada transaksi yang dapat dicetak");
       return;
     }
-    window.print();
+    if (!Capacitor.isNativePlatform()) {
+      window.print();
+      return;
+    }
+
+    if (!selectedPrinter) {
+      alert("Pilih printer RPP02N terlebih dahulu");
+      return;
+    }
+
+    setPrinterStatus("Mengirim struk ke printer...");
+    BluetoothPrinter.connectAndPrint({
+      address: selectedPrinter,
+      data: createEscPosReceipt(lastTransaction),
+    })
+      .then(() => setPrinterStatus("Struk berhasil dicetak"))
+      .catch((error) => {
+        console.error(error);
+        setPrinterStatus("Gagal mencetak. Pastikan RPP02N sudah dipasangkan.");
+      });
+  };
+
+  const findPrinters = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      alert("Pencarian Bluetooth langsung tersedia setelah aplikasi diinstal sebagai APK Android.");
+      return;
+    }
+
+    try {
+      setPrinterStatus("Mencari perangkat Bluetooth yang sudah dipasangkan...");
+      const { devices } = await BluetoothPrinter.list();
+      setPrinters(devices);
+      setPrinterStatus(
+        devices.length ? "Pilih RPP02N dari daftar" : "Tidak ada perangkat. Pasangkan RPP02N di Pengaturan Android."
+      );
+    } catch (error) {
+      console.error(error);
+      setPrinterStatus("Izin Bluetooth belum diberikan atau Bluetooth sedang mati.");
+    }
+  };
+
+  const selectPrinter = (address) => {
+    setSelectedPrinter(address);
+    localStorage.setItem("bluetoothPrinterAddress", address);
+    setPrinterStatus("Printer dipilih dan siap digunakan");
   };
 
   return (
@@ -562,8 +614,33 @@ function POS() {
               disabled={!lastTransaction}
               className="w-full bg-slate-800 disabled:bg-slate-300 text-white font-bold py-3 rounded-lg"
             >
-              Cetak Struk Bluetooth
+              {Capacitor.isNativePlatform() ? "Cetak Langsung ke RPP02N" : "Cetak Struk Bluetooth"}
             </button>
+
+            <div className="border rounded-lg p-3 space-y-2">
+              <p className="font-bold text-sm">Printer Bluetooth ESC/POS</p>
+              <button
+                onClick={findPrinters}
+                className="w-full bg-indigo-600 text-white py-2 rounded"
+              >
+                Cari Printer yang Sudah Dipasangkan
+              </button>
+              {printers.length > 0 && (
+                <select
+                  value={selectedPrinter}
+                  onChange={(e) => selectPrinter(e.target.value)}
+                  className="w-full border rounded p-2 text-sm"
+                >
+                  <option value="">Pilih RPP02N</option>
+                  {printers.map((printer) => (
+                    <option key={printer.address} value={printer.address}>
+                      {printer.name || "Tanpa nama"} ({printer.address})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {printerStatus && <p className="text-xs text-gray-600">{printerStatus}</p>}
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               <button
