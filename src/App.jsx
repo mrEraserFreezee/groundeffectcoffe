@@ -83,7 +83,9 @@ function App() {
 </button>
       </div>
 
-      {page === "pos" && <POS />}
+      {page === "pos" && (
+        <POS products={products} setProducts={setProducts} />
+      )}
 
       {page === "inventory" && (
         <Inventory

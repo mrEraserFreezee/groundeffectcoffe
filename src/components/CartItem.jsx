@@ -1,6 +1,7 @@
-function CartItem({ item, increase, decrease }) {
+function CartItem({ item, increase, decrease, updateNote }) {
   return (
-    <div className="flex justify-between items-center border-b py-3">
+    <div className="border-b py-3">
+      <div className="flex justify-between items-center">
       <div>
         <h4 className="font-medium">
           {item.name}
@@ -34,6 +35,15 @@ function CartItem({ item, increase, decrease }) {
           +
         </button>
       </div>
+      </div>
+
+      <input
+        type="text"
+        value={item.note || ""}
+        onChange={(event) => updateNote(item.cartId, event.target.value)}
+        placeholder="Catatan pesanan, contoh: tanpa gula"
+        className="mt-2 w-full border rounded p-2 text-sm"
+      />
     </div>
   );
 }

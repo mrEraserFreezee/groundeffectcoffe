@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { BluetoothPrinter } from "@kduma-autoid/capacitor-bluetooth-printer";
-import products from "../data/products";
+import defaultProducts from "../data/products";
 import CartItem from "../components/CartItem";
 import Receipt from "../components/Receipt";
-import { createEscPosReceipt } from "../utils/bluetoothPrinter";
+import { createEscPosReceipt, getQrisPayload, getReceiptItems } from "../utils/bluetoothPrinter";
 
-function POS() {
+function POS({ products = defaultProducts, setProducts }) {
   const [cart, setCart] = useState([]);
   useEffect(() => {
   const promoCart =
@@ -34,6 +34,7 @@ function POS() {
     () => localStorage.getItem("bluetoothPrinterAddress") || ""
   );
   const [printerStatus, setPrinterStatus] = useState("");
+  const [receiptType, setReceiptType] = useState("customer");
 
   // OPEN BILL
   const [openBills, setOpenBills] = useState([]);
@@ -112,6 +113,23 @@ function POS() {
         )
         .filter((item) => item.qty > 0)
     );
+  };
+
+  const updateNote = (cartId, note) => {
+    setCart((currentCart) => currentCart.map((item) => (
+      item.cartId === cartId ? { ...item, note } : item
+    )));
+  };
+
+  const updateProductImage = (productId, file) => {
+    if (!file || !setProducts) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProducts((currentProducts) => currentProducts.map((product) => (
+        product.id === productId ? { ...product, image: reader.result } : product
+      )));
+    };
+    reader.readAsDataURL(file);
   };
 
   const total = cart.reduce(
@@ -204,6 +222,7 @@ function POS() {
   qty: item.qty,
   price: item.price,
   category: item.category,
+  note: item.note || "",
   subtotal: item.price * item.qty,
 })),
       orderDetail: cart
@@ -257,13 +276,18 @@ function POS() {
 }
   };
 
-  const printReceipt = () => {
+  const printReceipt = async (type = "customer") => {
     if (!lastTransaction) {
       alert("Belum ada transaksi yang dapat dicetak");
       return;
     }
+    if (getReceiptItems(lastTransaction, type).length === 0) {
+      alert(type === "bar" ? "Tidak ada pesanan minuman untuk bar" : "Tidak ada pesanan makanan untuk dapur");
+      return;
+    }
+    setReceiptType(type);
     if (!Capacitor.isNativePlatform()) {
-      window.print();
+      window.setTimeout(() => window.print(), 0);
       return;
     }
 
@@ -273,15 +297,17 @@ function POS() {
     }
 
     setPrinterStatus("Mengirim struk ke printer...");
-    BluetoothPrinter.connectAndPrint({
-      address: selectedPrinter,
-      data: createEscPosReceipt(lastTransaction),
-    })
-      .then(() => setPrinterStatus("Struk berhasil dicetak"))
-      .catch((error) => {
-        console.error(error);
-        setPrinterStatus("Gagal mencetak. Pastikan RPP02N sudah dipasangkan.");
+    try {
+      const qrisPayload = type === "customer" ? await getQrisPayload() : "";
+      await BluetoothPrinter.connectAndPrint({
+        address: selectedPrinter,
+        data: createEscPosReceipt(lastTransaction, type, qrisPayload),
       });
+      setPrinterStatus("Struk berhasil dicetak");
+    } catch (error) {
+      console.error(error);
+      setPrinterStatus("Gagal mencetak. Pastikan RPP02N sudah dipasangkan dan QRIS dapat dibaca.");
+    }
   };
 
   const findPrinters = async () => {
@@ -380,9 +406,18 @@ function POS() {
                         key={product.id}
                         className="bg-white rounded-xl shadow p-4"
                       >
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-28 object-cover rounded-lg mb-3" />
+                        ) : (
+                          <div className="w-full h-28 rounded-lg mb-3 bg-amber-100 flex items-center justify-center text-5xl">☕</div>
+                        )}
                         <h3 className="font-bold text-lg">
                           {product.name}
                         </h3>
+                        <label className="block text-xs text-amber-700 mt-1 cursor-pointer">
+                          Tambah foto
+                          <input type="file" accept="image/*" className="hidden" onChange={(event) => updateProductImage(product.id, event.target.files?.[0])} />
+                        </label>
 
                         <div className="flex gap-2 mt-3">
                           {product.variants.map(
@@ -436,9 +471,18 @@ function POS() {
                         key={product.id}
                         className="bg-white rounded-xl shadow p-4"
                       >
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-28 object-cover rounded-lg mb-3" />
+                        ) : (
+                          <div className="w-full h-28 rounded-lg mb-3 bg-blue-100 flex items-center justify-center text-5xl">🥤</div>
+                        )}
                         <h3 className="font-bold text-lg">
                           {product.name}
                         </h3>
+                        <label className="block text-xs text-blue-700 mt-1 cursor-pointer">
+                          Tambah foto
+                          <input type="file" accept="image/*" className="hidden" onChange={(event) => updateProductImage(product.id, event.target.files?.[0])} />
+                        </label>
 
                         <div className="flex gap-2 mt-3">
                           {product.variants.map(
@@ -488,9 +532,18 @@ function POS() {
                         key={product.id}
                         className="bg-white rounded-xl shadow p-4"
                       >
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-28 object-cover rounded-lg mb-3" />
+                        ) : (
+                          <div className="w-full h-28 rounded-lg mb-3 bg-green-100 flex items-center justify-center text-5xl">🍽️</div>
+                        )}
                         <h3 className="font-bold text-lg">
                           {product.name}
                         </h3>
+                        <label className="block text-xs text-green-700 mt-1 cursor-pointer">
+                          Tambah foto
+                          <input type="file" accept="image/*" className="hidden" onChange={(event) => updateProductImage(product.id, event.target.files?.[0])} />
+                        </label>
 
                         <button
                           onClick={() =>
@@ -525,6 +578,7 @@ function POS() {
                 item={item}
                 increase={increase}
                 decrease={decrease}
+                updateNote={updateNote}
               />
             ))
           )}
@@ -609,13 +663,14 @@ function POS() {
               Simpan Transaksi
             </button>
 
-            <button
-              onClick={printReceipt}
-              disabled={!lastTransaction}
-              className="w-full bg-slate-800 disabled:bg-slate-300 text-white font-bold py-3 rounded-lg"
-            >
-              {Capacitor.isNativePlatform() ? "Cetak Langsung ke RPP02N" : "Cetak Struk Bluetooth"}
-            </button>
+            <div className="border rounded-lg p-3">
+              <p className="font-bold text-sm mb-2">Cetak Struk Pesanan</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => printReceipt("kitchen")} disabled={!lastTransaction} className="bg-orange-600 disabled:bg-slate-300 text-white py-2 rounded text-sm">Dapur</button>
+                <button onClick={() => printReceipt("bar")} disabled={!lastTransaction} className="bg-sky-600 disabled:bg-slate-300 text-white py-2 rounded text-sm">Bar</button>
+                <button onClick={() => printReceipt("customer")} disabled={!lastTransaction} className="bg-slate-800 disabled:bg-slate-300 text-white py-2 rounded text-sm">Customer</button>
+              </div>
+            </div>
 
             <div className="border rounded-lg p-3 space-y-2">
               <p className="font-bold text-sm">Printer Bluetooth ESC/POS</p>
@@ -693,6 +748,7 @@ function POS() {
       <Receipt
         transaction={lastTransaction}
         items={lastTransaction?.items}
+        receiptType={receiptType}
       />
     </div>
   );

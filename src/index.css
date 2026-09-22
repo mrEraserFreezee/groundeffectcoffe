@@ -20,6 +20,9 @@
 }
 .receipt-item { margin-bottom: 5px; }
 .receipt-footer { margin-top: 12px; }
+.receipt-qris { margin-top: 12px; text-align: center; }
+.receipt-qris p { margin: 0 0 5px; }
+.receipt-qris img { width: 48mm; height: auto; }
 
 @media print {
   @page { size: 80mm auto; margin: 3mm; }
