@@ -1,9 +1,11 @@
 import jsQR from 'jsqr';
+import QRCode from 'qrcode';
 
 const LINE_WIDTH = 32;
 const ESC = '\u001b';
 const GS = '\u001d';
 let qrisPayloadPromise;
+let logoBitmapPromise;
 
 const rupiah = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
 
@@ -63,88 +65,113 @@ export function getQrisPayload() {
   return qrisPayloadPromise;
 }
 
-// FIX: Konversi perintah QRIS ESC/POS menjadi byte array mentah agar printer membaca perintah barcode
-const qrisCommand = (payload) => {
-  const encoder = new TextEncoder();
-  const payloadBytes = encoder.encode(payload);
-  const dataLength = payloadBytes.length + 3;
-  const pL = dataLength & 0xff;
-  const pH = (dataLength >> 8) & 0xff;
+// FUNGSI HELPER: Konversi Gambar menjadi Perintah Raster Bit Image ESC/POS (GS v 0)
+async function imageToEscPosRaster(imageSrc, targetWidth = 200) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = targetWidth / img.width;
+      canvas.width = targetWidth;
+      canvas.height = Math.round(img.height * scale);
 
-  const header = new Uint8Array([
-    0x1d,
-    0x28,
-    0x6b,
-    0x04,
-    0x00,
-    0x31,
-    0x41,
-    0x32,
-    0x00, // Select Model
-    0x1d,
-    0x28,
-    0x6b,
-    0x03,
-    0x00,
-    0x31,
-    0x43,
-    0x05, // Size Module
-    0x1d,
-    0x28,
-    0x6b,
-    0x03,
-    0x00,
-    0x31,
-    0x45,
-    0x30, // Error Correction Level
-    0x1d,
-    0x28,
-    0x6b,
-    pL,
-    pH,
-    0x31,
-    0x50,
-    0x30, // Store Data Header
-  ]);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-  const footer = new Uint8Array([
-    0x1d,
-    0x28,
-    0x6b,
-    0x03,
-    0x00,
-    0x31,
-    0x51,
-    0x30, // Print QR Code
-  ]);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const widthBytes = Math.ceil(canvas.width / 8);
 
-  const result = new Uint8Array(header.length + payloadBytes.length + footer.length);
-  result.set(header, 0);
-  result.set(payloadBytes, header.length);
-  result.set(footer, header.length + payloadBytes.length);
+      const xL = widthBytes % 256;
+      const xH = Math.floor(widthBytes / 256);
+      const yL = canvas.height % 256;
+      const yH = Math.floor(canvas.height / 256);
 
-  // Return sebagai binary string murni
-  return Array.from(result, (byte) => String.fromCharCode(byte)).join('');
-};
+      const header = new Uint8Array([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+      const imageBytes = new Uint8Array(widthBytes * canvas.height);
 
-export function createEscPosReceipt(transaction, receiptType = 'customer', qrisPayload = '') {
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const offset = (y * canvas.width + x) * 4;
+          const r = imgData.data[offset];
+          const g = imgData.data[offset + 1];
+          const b = imgData.data[offset + 2];
+          const isBlack = (r + g + b) / 3 < 180;
+
+          if (isBlack) {
+            const byteIndex = y * widthBytes + Math.floor(x / 8);
+            const bitIndex = 7 - (x % 8);
+            imageBytes[byteIndex] |= 1 << bitIndex;
+          }
+        }
+      }
+
+      const result = new Uint8Array(header.length + imageBytes.length);
+      result.set(header, 0);
+      result.set(imageBytes, header.length);
+
+      resolve(Array.from(result, (byte) => String.fromCharCode(byte)).join(''));
+    };
+    img.onerror = () => resolve('');
+    img.src = imageSrc;
+  });
+}
+
+// Generasi Bitmap QR Code
+async function generateQrisBitmapCommand(payload) {
+  try {
+    const canvas = document.createElement('canvas');
+    await QRCode.toCanvas(canvas, payload, {
+      width: 200,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    return await imageToEscPosRaster(canvas.toDataURL(), 200);
+  } catch (err) {
+    console.error('Gagal generate QR Bitmap:', err);
+    return '';
+  }
+}
+
+// Generasi Logo Toko
+async function getLogoCommand() {
+  if (logoBitmapPromise) return logoBitmapPromise;
+  logoBitmapPromise = imageToEscPosRaster(`${import.meta.env.BASE_URL}logo.png`, 180);
+  return logoBitmapPromise;
+}
+
+export async function createEscPosReceipt(transaction, receiptType = 'customer', qrisPayload = '') {
   const config = receiptConfig[receiptType] || receiptConfig.customer;
   const items = getReceiptItems(transaction, receiptType);
   const paid = Number(transaction.payment || 0);
   const change = Math.max(0, paid - Number(transaction.total || 0));
+
+  // Ambil perintah logo bitmap
+  const logoCommand = await getLogoCommand();
+
   const lines = [
     `${ESC}@`,
-    `${ESC}a\u0001`,
-    `${GS}!\u0011GROUND EFFECT COFFEE${GS}!\u0000\n`,
-    `${config.title}\n`,
-    `${ESC}a\u0000`,
-    '--------------------------------\n',
-    `Invoice: ${transaction.invoice || '-'}\n`,
-    `Tanggal: ${new Date(transaction.created_at).toLocaleString('id-ID')}\n`,
-    transaction.customer ? `Customer: ${transaction.customer}\n` : '',
-    config.showTotal ? `Bayar: ${transaction.paymentMethod || '-'}\n` : '',
-    '--------------------------------\n',
+    `${ESC}a\u0001`, // Center Align
   ];
+
+  // Tambahkan Logo jika berhasil dimuat
+  if (logoCommand) {
+    lines.push(logoCommand);
+    lines.push('\n');
+  }
+
+  // Teks Header Toko
+  lines.push(`${GS}!\u0011GROUND EFFECT${GS}!\u0000\n`);
+  lines.push(`${config.title}\n`);
+  lines.push(`${ESC}a\u0000`); // Left Align
+  lines.push('--------------------------------\n');
+  lines.push(`Invoice: ${transaction.invoice || '-'}\n`);
+  lines.push(`Tanggal: ${new Date(transaction.created_at).toLocaleString('id-ID')}\n`);
+  if (transaction.customer) lines.push(`Customer: ${transaction.customer}\n`);
+  if (config.showTotal) lines.push(`Bayar: ${transaction.paymentMethod || '-'}\n`);
+  lines.push('--------------------------------\n');
 
   items.forEach((item) => {
     wrap(item.name).forEach((line) => lines.push(`${line}\n`));
@@ -164,7 +191,8 @@ export function createEscPosReceipt(transaction, receiptType = 'customer', qrisP
     }
     if (qrisPayload) {
       lines.push(`${ESC}a\u0001SCAN QRIS UNTUK MEMBAYAR\n`);
-      lines.push(qrisCommand(qrisPayload));
+      const qrImageCommand = await generateQrisBitmapCommand(qrisPayload);
+      lines.push(qrImageCommand);
       lines.push('\n');
       lines.push(`${ESC}a\u0000`);
     }
