@@ -40,7 +40,7 @@ const receiptConfig = {
 };
 
 export function getReceiptItems(transaction, receiptType = 'customer') {
-  return (receiptConfig[receiptType] || receiptConfig.customer).items(transaction.items || []);
+  return (receiptConfig[receiptType] || receiptConfig.customer).items(transaction?.items || []);
 }
 
 export function getQrisPayload() {
@@ -145,8 +145,9 @@ async function getLogoCommand() {
 export async function createEscPosReceipt(transaction, receiptType = 'customer', qrisPayload = '') {
   const config = receiptConfig[receiptType] || receiptConfig.customer;
   const items = getReceiptItems(transaction, receiptType);
-  const paid = Number(transaction.payment || 0);
-  const change = Math.max(0, paid - Number(transaction.total || 0));
+  const paid = Number(transaction?.payment || 0);
+  const total = Number(transaction?.total || 0);
+  const change = Math.max(0, paid - total);
 
   // Ambil perintah logo bitmap
   const logoCommand = await getLogoCommand();
@@ -167,10 +168,10 @@ export async function createEscPosReceipt(transaction, receiptType = 'customer',
   lines.push(`${config.title}\n`);
   lines.push(`${ESC}a\u0000`); // Left Align
   lines.push('--------------------------------\n');
-  lines.push(`Invoice: ${transaction.invoice || '-'}\n`);
-  lines.push(`Tanggal: ${new Date(transaction.created_at).toLocaleString('id-ID')}\n`);
-  if (transaction.customer) lines.push(`Customer: ${transaction.customer}\n`);
-  if (config.showTotal) lines.push(`Bayar: ${transaction.paymentMethod || '-'}\n`);
+  lines.push(`Invoice: ${transaction?.invoice || '-'}\n`);
+  lines.push(`Tanggal: ${new Date(transaction?.created_at || Date.now()).toLocaleString('id-ID')}\n`);
+  if (transaction?.customer) lines.push(`Customer: ${transaction.customer}\n`);
+  if (config.showTotal) lines.push(`Bayar: ${transaction?.paymentMethod || '-'}\n`);
   lines.push('--------------------------------\n');
 
   items.forEach((item) => {
@@ -184,8 +185,8 @@ export async function createEscPosReceipt(transaction, receiptType = 'customer',
 
   if (config.showTotal) {
     lines.push('--------------------------------\n');
-    lines.push(`${twoColumns('TOTAL', rupiah(transaction.total))}\n`);
-    if (transaction.paymentMethod === 'Tunai') {
+    lines.push(`${twoColumns('TOTAL', rupiah(total))}\n`);
+    if (transaction?.paymentMethod === 'Tunai') {
       lines.push(`${twoColumns('Bayar', rupiah(paid))}\n`);
       lines.push(`${twoColumns('Kembalian', rupiah(change))}\n`);
     }
