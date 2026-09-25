@@ -13,7 +13,6 @@ function POS({ products = defaultProducts, setProducts }) {
 
     if (promoCart.length > 0) {
       setCart((prev) => [...prev, ...promoCart]);
-
       localStorage.removeItem('promoCart');
     }
   }, []);
@@ -201,11 +200,8 @@ function POS({ products = defaultProducts, setProducts }) {
         body: formData,
       });
 
-      // SIMPAN KE LOCAL STORAGE
       const existing = JSON.parse(localStorage.getItem('transactions')) || [];
-
       existing.push(transaction);
-
       localStorage.setItem('transactions', JSON.stringify(existing));
 
       setLastTransaction(transaction);
@@ -222,7 +218,6 @@ function POS({ products = defaultProducts, setProducts }) {
     }
   };
 
-  // PERBAIKAN PADA FUNGSI PRINT RECEIPT
   const printReceipt = async (type = 'customer') => {
     if (!lastTransaction) {
       alert('Belum ada transaksi yang dapat dicetak');
@@ -246,7 +241,6 @@ function POS({ products = defaultProducts, setProducts }) {
     setPrinterStatus('Mengirim struk ke printer...');
     try {
       let qrisPayload = '';
-      // Ambil QRIS Payload jika tipe struk customer & pembayaran QRIS
       if (type === 'customer' && lastTransaction.paymentMethod === 'QRIS') {
         try {
           qrisPayload = await getQrisPayload();
@@ -255,7 +249,6 @@ function POS({ products = defaultProducts, setProducts }) {
         }
       }
 
-      // TAMBAHKAN AWAIT DI SINI
       const receiptData = await createEscPosReceipt(lastTransaction, type, qrisPayload);
 
       await BluetoothPrinter.connectAndPrint({
@@ -296,30 +289,23 @@ function POS({ products = defaultProducts, setProducts }) {
     <div className="min-h-screen bg-gray-100 p-6">
       <h1 className="text-5xl font-extrabold text-center mb-8 text-amber-700">☕ Ground Effect POS</h1>
 
-      <div className="flex gap-3 mb-6">
-        <button
-          onClick={() => setSelectedCategory('Semua')}
-          className={`px-4 py-2 rounded-lg ${selectedCategory === 'Semua' ? 'bg-amber-600 text-white' : 'bg-white'}`}>
-          Semua
-        </button>
-
-        <button
-          onClick={() => setSelectedCategory('Minuman')}
-          className={`px-4 py-2 rounded-lg ${selectedCategory === 'Minuman' ? 'bg-amber-600 text-white' : 'bg-white'}`}>
-          Minuman
-        </button>
-
-        <button
-          onClick={() => setSelectedCategory('Makanan')}
-          className={`px-4 py-2 rounded-lg ${selectedCategory === 'Makanan' ? 'bg-amber-600 text-white' : 'bg-white'}`}>
-          Makanan
-        </button>
+      {/* FILTER KATEGORI */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {['Semua', 'Coffee', 'Non Coffee', 'Mocktail', 'Cocktail', 'Makanan'].map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`px-4 py-2 rounded-lg font-medium transition ${selectedCategory === cat ? 'bg-amber-600 text-white shadow' : 'bg-white text-gray-700 hover:bg-amber-50'}`}>
+            {cat}
+          </button>
+        ))}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
           <div className="space-y-8">
-            {(selectedCategory === 'Semua' || selectedCategory === 'Minuman') && (
+            {/* COFFEE */}
+            {(selectedCategory === 'Semua' || selectedCategory === 'Coffee' || selectedCategory === 'Minuman') && (
               <>
                 <h2 className="text-2xl font-bold text-amber-700 border-b pb-2">☕ Coffee</h2>
 
@@ -368,7 +354,8 @@ function POS({ products = defaultProducts, setProducts }) {
               </>
             )}
 
-            {(selectedCategory === 'Semua' || selectedCategory === 'Minuman') && (
+            {/* NON COFFEE */}
+            {(selectedCategory === 'Semua' || selectedCategory === 'Non Coffee' || selectedCategory === 'Minuman') && (
               <>
                 <h2 className="text-2xl font-bold text-blue-700 border-b pb-2">🥛 Non Coffee</h2>
 
@@ -417,6 +404,107 @@ function POS({ products = defaultProducts, setProducts }) {
               </>
             )}
 
+            {/* MOCKTAIL */}
+            {(selectedCategory === 'Semua' || selectedCategory === 'Mocktail' || selectedCategory === 'Minuman') && (
+              <>
+                <h2 className="text-2xl font-bold text-teal-700 border-b pb-2">🍹 Mocktail</h2>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {products
+                    .filter((p) => p.category === 'Minuman' && p.type === 'Mocktail')
+                    .map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow p-4">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-28 object-cover rounded-lg mb-3"
+                          />
+                        ) : (
+                          <div className="w-full h-28 rounded-lg mb-3 bg-teal-100 flex items-center justify-center text-5xl">🍹</div>
+                        )}
+                        <h3 className="font-bold text-lg">{product.name}</h3>
+                        <label className="block text-xs text-teal-700 mt-1 cursor-pointer">
+                          Tambah foto
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => updateProductImage(product.id, event.target.files?.[0])}
+                          />
+                        </label>
+
+                        <div className="flex gap-2 mt-3">
+                          {product.variants.map((variant, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => addToCart(product, variant)}
+                              className="flex-1 bg-teal-600 text-white py-2 rounded-lg text-sm">
+                              {variant.size || 'Regular'}
+                              <br />
+                              Rp {variant.price.toLocaleString()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+
+            {/* COCKTAIL */}
+            {(selectedCategory === 'Semua' || selectedCategory === 'Cocktail' || selectedCategory === 'Minuman') && (
+              <>
+                <h2 className="text-2xl font-bold text-purple-700 border-b pb-2">🍸 Cocktail</h2>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {products
+                    .filter((p) => p.category === 'Minuman' && p.type === 'Cocktail')
+                    .map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow p-4">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-28 object-cover rounded-lg mb-3"
+                          />
+                        ) : (
+                          <div className="w-full h-28 rounded-lg mb-3 bg-purple-100 flex items-center justify-center text-5xl">🍸</div>
+                        )}
+                        <h3 className="font-bold text-lg">{product.name}</h3>
+                        <label className="block text-xs text-purple-700 mt-1 cursor-pointer">
+                          Tambah foto
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => updateProductImage(product.id, event.target.files?.[0])}
+                          />
+                        </label>
+
+                        <div className="flex gap-2 mt-3">
+                          {product.variants.map((variant, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => addToCart(product, variant)}
+                              className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm">
+                              {variant.size || 'Regular'}
+                              <br />
+                              Rp {variant.price.toLocaleString()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+
+            {/* MAKANAN */}
             {(selectedCategory === 'Semua' || selectedCategory === 'Makanan') && (
               <>
                 <h2 className="text-2xl font-bold text-green-700 border-b pb-2">🍟 Makanan & Snack</h2>
@@ -448,11 +536,28 @@ function POS({ products = defaultProducts, setProducts }) {
                           />
                         </label>
 
-                        <button
-                          onClick={() => addToCart(product)}
-                          className="w-full mt-3 bg-green-600 text-white py-2 rounded-lg">
-                          Rp {product.price.toLocaleString()}
-                        </button>
+                        {/* MENAMPILKAN TOMBOL VARIAN UNTUK INDOMIE (GORENG/REBUS) */}
+                        {product.variants && product.variants.length > 0 ? (
+                          <div className="flex gap-2 mt-3">
+                            {product.variants.map((variant, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => addToCart(product, variant)}
+                                className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+                                {variant.size}
+                                <br />
+                                Rp {variant.price.toLocaleString()}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          /* UNTUK MAKANAN BIASA */
+                          <button
+                            onClick={() => addToCart(product)}
+                            className="w-full mt-3 bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700">
+                            Rp {product.price?.toLocaleString()}
+                          </button>
+                        )}
                       </div>
                     ))}
                 </div>

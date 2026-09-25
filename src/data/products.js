@@ -225,25 +225,37 @@ const products = [
     id: 26,
     category: 'Makanan',
     name: 'Indomie',
-    price: 15000,
+    variants: [
+      { size: 'Goreng', price: 15000 },
+      { size: 'Rebus', price: 15000 },
+    ],
   },
   {
     id: 27,
     category: 'Makanan',
     name: 'Indomie Telor',
-    price: 20000,
+    variants: [
+      { size: 'Goreng', price: 20000 },
+      { size: 'Rebus', price: 20000 },
+    ],
   },
   {
     id: 28,
     category: 'Makanan',
     name: 'Indomie Double',
-    price: 22000,
+    variants: [
+      { size: 'Goreng', price: 22000 },
+      { size: 'Rebus', price: 22000 },
+    ],
   },
   {
     id: 29,
     category: 'Makanan',
     name: 'Indomie Double Telor',
-    price: 25000,
+    variants: [
+      { size: 'Goreng', price: 25000 },
+      { size: 'Rebus', price: 25000 },
+    ],
   },
   {
     id: 30,
